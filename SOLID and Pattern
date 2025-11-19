@@ -1,1 +1,21 @@
+public class UserService
+{
+    private readonly EmailService _emailService;
+    private readonly LoggerService _logger;
+
+    public UserService(EmailService emailService, LoggerService logger)
+    {
+        _emailService = emailService;
+        _logger = logger;
+    }
+
+    public void CreateUser(string name, string email)
+    {
+        // логіка створення користувача
+        Console.WriteLine($"User {name} created");
+
+        _emailService.SendWelcomeEmail(email);
+        _logger.Log($"Created user {name}");
+    }
+}
 
