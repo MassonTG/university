@@ -1,0 +1,21 @@
+//Надає спрощений інтерфейс до складної системи.
+
+#include <iostream>
+using namespace std;
+
+class CPU { public: void start() { cout << "CPU start\n"; } };
+class Memory { public: void load() { cout << "Memory load\n"; } };
+class Disk { public: void read() { cout << "Disk read\n"; } };
+
+class ComputerFacade {
+    CPU cpu;
+    Memory mem;
+    Disk disk;
+public:
+    void startComputer() {
+        cpu.start();
+        mem.load();
+        disk.read();
+        cout << "Computer started\n";
+    }
+};
