@@ -1,4 +1,4 @@
-namespace MVC_ToDoList
+namespace MVP_ToDoList
 {
     partial class Form1
     {
@@ -38,7 +38,7 @@ namespace MVC_ToDoList
             this.Controls.Add(this.txtTask);
             this.Controls.Add(this.btnAdd);
             this.Controls.Add(this.listBoxTasks);
-            this.Text = "MVC To-Do List";
+            this.Text = "MVP To-Do List";
             this.ResumeLayout(false);
             this.PerformLayout();
         }
