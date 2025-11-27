@@ -2,63 +2,25 @@ using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
 
-namespace MVC_ToDoList
+namespace MVP_ToDoList
 {
-    // -------- Model -------
-    public class TaskModel
+    public partial class Form1 : Form, ITaskView
     {
-        public string Description { get; set; }
-        public bool IsDone { get; set; }
-    }
-
-    // ---- Controller -------
-    public class TaskController
-    {
-        private List<TaskModel> tasks;
-        private Form1 view;
-
-        public TaskController(Form1 v)
-        {
-            tasks = new List<TaskModel>();
-            view = v;
-        }
-
-        public void AddTask(string description)
-        {
-            tasks.Add(new TaskModel { Description = description, IsDone = false });
-            UpdateView();
-        }
-
-        public void ToggleTask(int index)
-        {
-            tasks[index].IsDone = !tasks[index].IsDone;
-            UpdateView();
-        }
-
-        private void UpdateView()
-        {
-            view.UpdateTaskList(tasks);
-        }
-    }
-
-    // -------- View ---------
-    public partial class Form1 : Form
-    {
-        private TaskController controller;
+        private TaskPresenter presenter;
 
         public Form1()
         {
             InitializeComponent();
-            controller = new TaskController(this);
+            presenter = new TaskPresenter(this);
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
-            controller.AddTask(txtTask.Text);
+            presenter.AddTask(txtTask.Text);
             txtTask.Clear();
         }
 
-        public void UpdateTaskList(List<TaskModel> tasks)
+        public void ShowTasks(List<TaskModel> tasks)
         {
             listBoxTasks.Items.Clear();
             foreach (var t in tasks)
@@ -71,7 +33,7 @@ namespace MVC_ToDoList
         private void listBoxTasks_DoubleClick(object sender, EventArgs e)
         {
             if (listBoxTasks.SelectedIndex >= 0)
-                controller.ToggleTask(listBoxTasks.SelectedIndex);
+                presenter.ToggleTask(listBoxTasks.SelectedIndex);
         }
     }
 }
