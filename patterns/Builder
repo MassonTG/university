@@ -1,0 +1,37 @@
+//Дозволяє поетапно створювати складні об’єкти, ізолюючи процес побудови від кінцевого представлення
+
+#include <iostream>
+#include <string>
+using namespace std;
+
+class House {
+public:
+    string walls, roof;
+    void show() { cout << "House with " << walls << " and " << roof << endl; }
+};
+
+// Будівельник
+class HouseBuilder {
+public:
+    virtual void buildWalls() = 0;
+    virtual void buildRoof() = 0;
+    virtual House* getResult() = 0;
+};
+
+class WoodenHouseBuilder : public HouseBuilder {
+    House* house = new House();
+public:
+    void buildWalls() override { house->walls = "wooden walls"; }
+    void buildRoof() override { house->roof = "wooden roof"; }
+    House* getResult() override { return house; }
+};
+
+// Директор
+class Director {
+public:
+    House* construct(HouseBuilder* builder) {
+        builder->buildWalls();
+        builder->buildRoof();
+        return builder->getResult();
+    }
+};
