@@ -1,0 +1,24 @@
+//Забезпечує сурогатний об’єкт, який контролює доступ до іншого об’єкта.
+
+#include <iostream>
+using namespace std;
+
+class Service {
+public:
+    virtual void request() = 0;
+};
+
+class RealService : public Service {
+public:
+    void request() override { cout << "Real service request\n"; }
+};
+
+class ProxyService : public Service {
+    RealService* real;
+public:
+    ProxyService() { real = new RealService(); }
+    void request() override {
+        cout << "Proxy check\n";
+        real->request();
+    }
+};
