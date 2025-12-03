@@ -1,0 +1,12 @@
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# Database (Postgres)
+psycopg2-binary==2.9.9
+
+# CSV — стандартна бібліотека Python, окремо нічого не треба
+
+# Тести
+pytest==8.3.3
+requests==2.32.3

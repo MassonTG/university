@@ -1,0 +1,29 @@
+//Розділяє абстракцію і реалізацію, дозволяючи їх незалежно змінювати.
+
+#include <iostream>
+using namespace std;
+
+// Реалізація
+class Device {
+public:
+    virtual void turnOn() = 0;
+};
+
+class TV : public Device {
+public:
+    void turnOn() override { cout << "TV is ON\n"; }
+};
+
+class Radio : public Device {
+public:
+    void turnOn() override { cout << "Radio is ON\n"; }
+};
+
+// Абстракція
+class Remote {
+protected:
+    Device* device;
+public:
+    Remote(Device* d) : device(d) {}
+    virtual void pressButton() { device->turnOn(); }
+};

@@ -1,0 +1,20 @@
+//Визначає скелет алгоритму в базовому класі, дозволяючи підкласам реалізовувати окремі кроки без зміни структури алгоритму.
+
+#include <iostream>
+using namespace std;
+
+class AbstractClass {
+public:
+    void templateMethod() {
+        step1();
+        step2();
+    }
+    virtual void step1() = 0;
+    virtual void step2() = 0;
+};
+
+class ConcreteClass : public AbstractClass {
+public:
+    void step1() override { cout << "Step 1\n"; }
+    void step2() override { cout << "Step 2\n"; }
+};

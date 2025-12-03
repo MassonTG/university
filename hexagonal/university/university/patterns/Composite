@@ -1,0 +1,24 @@
+//Дозволяє працювати з групою об’єктів так само, як з одним об’єктом
+
+#include <iostream>
+#include <vector>
+using namespace std;
+
+class Graphic {
+public:
+    virtual void draw() = 0;
+};
+
+class Circle : public Graphic {
+public:
+    void draw() override { cout << "Drawing Circle\n"; }
+};
+
+class CompositeGraphic : public Graphic {
+    vector<Graphic*> children;
+public:
+    void add(Graphic* g) { children.push_back(g); }
+    void draw() override {
+        for (auto c : children) c->draw();
+    }
+};

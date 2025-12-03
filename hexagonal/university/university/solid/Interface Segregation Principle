@@ -1,0 +1,39 @@
+//Краще мати кілька вузьких інтерфейсів, ніж один "жирний".
+
+#include <iostream>
+using namespace std;
+
+// не правильно: інтерфейс занадто великий
+class IWorker {
+public:
+    virtual void work() = 0;
+    virtual void eat() = 0;
+};
+
+class Robot : public IWorker {
+public:
+    void work() override { cout << "Robot working..." << endl; }
+    void eat() override { /* Робот не їсть */ }
+};
+
+// правильно: розділяємо інтерфейси
+class IWorkable {
+public:
+    virtual void work() = 0;
+};
+
+class IEatable {
+public:
+    virtual void eat() = 0;
+};
+
+class Human : public IWorkable, public IEatable {
+public:
+    void work() override { cout << "Human working..." << endl; }
+    void eat() override { cout << "Human eating..." << endl; }
+};
+
+class RobotCorrect : public IWorkable {
+public:
+    void work() override { cout << "Robot working..." << endl; }
+};

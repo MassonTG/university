@@ -1,0 +1,24 @@
+//Встановлює залежність "один-до-багатьох", де зміна стану одного об’єкта повідомляє всіх його підписників.
+
+#include <iostream>
+#include <vector>
+using namespace std;
+
+class Observer {
+public:
+    virtual void update(string msg) = 0;
+};
+
+class Subject {
+    vector<Observer*> observers;
+public:
+    void attach(Observer* o) { observers.push_back(o); }
+    void notify(string msg) {
+        for (auto o : observers) o->update(msg);
+    }
+};
+
+class ConcreteObserver : public Observer {
+public:
+    void update(string msg) override { cout << "Got update: " << msg << endl; }
+};

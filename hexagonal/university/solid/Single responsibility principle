@@ -1,0 +1,31 @@
+//Клас повинен мати лише одну причину для зміни. Тобто відповідати лише за одну задачу.
+
+#include <iostream>
+#include <string>
+using namespace std;
+
+// не правильно: клас виконує і логіку бізнесу, і логіку збереження
+class Report {
+public:
+    void generateReport() {
+        cout << "Generating report..." << endl;
+    }
+    void saveToFile(string filename) {
+        cout << "Saving report to file: " << filename << endl;
+    }
+};
+
+// правильно: розділяємо відповідальності
+class ReportGenerator {
+public:
+    void generateReport() {
+        cout << "Generating report..." << endl;
+    }
+};
+
+class ReportSaver {
+public:
+    void saveToFile(string filename) {
+        cout << "Saving report to file: " << filename << endl;
+    }
+};

@@ -1,0 +1,21 @@
+//Оптимізує використання пам’яті шляхом спільного використання однакових об’єктів.
+
+#include <iostream>
+#include <map>
+using namespace std;
+
+class Character {
+    char symbol;
+public:
+    Character(char s) : symbol(s) {}
+    void display() { cout << "Character: " << symbol << endl; }
+};
+
+class CharacterFactory {
+    map<char, Character*> pool;
+public:
+    Character* getChar(char c) {
+        if (!pool[c]) pool[c] = new Character(c);
+        return pool[c];
+    }
+};

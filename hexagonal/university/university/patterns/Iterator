@@ -1,0 +1,14 @@
+//Надає спосіб послідовного доступу до елементів колекції без розкриття її внутрішньої структури.
+
+#include <iostream>
+#include <vector>
+using namespace std;
+
+class Iterator {
+    vector<int>& data;
+    int index;
+public:
+    Iterator(vector<int>& d) : data(d), index(0) {}
+    bool hasNext() { return index < data.size(); }
+    int next() { return data[index++]; }
+};

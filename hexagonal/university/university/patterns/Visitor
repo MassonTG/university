@@ -1,0 +1,36 @@
+//Дозволяє додавати нові операції до об’єктів без зміни їхніх класів, використовуючи окремий клас "відвідувача".
+
+#include <iostream>
+using namespace std;
+
+class Visitor;
+
+class Element {
+public:
+    virtual void accept(Visitor* v) = 0;
+};
+
+class ConcreteElementA : public Element {
+public:
+    void accept(Visitor* v) override;
+};
+
+class ConcreteElementB : public Element {
+public:
+    void accept(Visitor* v) override;
+};
+
+class Visitor {
+public:
+    virtual void visit(ConcreteElementA* e) = 0;
+    virtual void visit(ConcreteElementB* e) = 0;
+};
+
+class ConcreteVisitor : public Visitor {
+public:
+    void visit(ConcreteElementA* e) override { cout << "Visited A\n"; }
+    void visit(ConcreteElementB* e) override { cout << "Visited B\n"; }
+};
+
+void ConcreteElementA::accept(Visitor* v) { v->visit(this); }
+void ConcreteElementB::accept(Visitor* v) { v->visit(this); }

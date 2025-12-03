@@ -1,0 +1,18 @@
+//Дозволяє створювати нові об’єкти шляхом копіювання існуючих (клонування), а не через конструктори.
+
+#include <iostream>
+using namespace std;
+
+class Prototype {
+public:
+    virtual Prototype* clone() = 0;
+    virtual void show() = 0;
+};
+
+class ConcretePrototype : public Prototype {
+    int value;
+public:
+    ConcretePrototype(int v) : value(v) {}
+    Prototype* clone() override { return new ConcretePrototype(value); }
+    void show() override { cout << "Value: " << value << endl; }
+};

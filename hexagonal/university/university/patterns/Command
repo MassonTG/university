@@ -1,0 +1,22 @@
+//Інкапсулює запит у вигляді об’єкта, дозволяючи відкладати його виконання або ставити у чергу.
+
+#include <iostream>
+using namespace std;
+
+class Command {
+public:
+    virtual void execute() = 0;
+};
+
+class Light {
+public:
+    void on() { cout << "Light ON\n"; }
+    void off() { cout << "Light OFF\n"; }
+};
+
+class LightOnCommand : public Command {
+    Light* light;
+public:
+    LightOnCommand(Light* l) : light(l) {}
+    void execute() override { light->on(); }
+};
