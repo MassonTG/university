@@ -1,0 +1,20 @@
+1. Catalog
+Invoke-WebRequest http://localhost:8080/catalog/items
+Очікувано:
+json
+[{"id":1,"name":"Desk"},{"id":2,"name":"Chair"}]
+
+2. Users
+Invoke-WebRequest http://localhost:8080/users/1
+Очікувано:
+json
+{"id":1,"email":"alice@example.com"}
+
+3. Orders
+Invoke-WebRequest http://localhost:8080/orders `
+  -Method POST `
+  -Headers @{ "Content-Type" = "application/json" } `
+  -Body '{"userId":1,"itemId":1,"qty":1}'
+Очікувано:
+json
+{"id":1}
