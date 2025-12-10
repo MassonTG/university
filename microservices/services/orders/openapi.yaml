@@ -1,0 +1,30 @@
+openapi: 3.0.0
+info:
+  title: Orders Service
+  version: 1.0.0
+paths:
+  /orders:
+    post:
+      summary: Create order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, itemId, qty]
+              properties:
+                userId: { type: integer }
+                itemId: { type: integer }
+                qty: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+        '400':
+          description: Bad request
