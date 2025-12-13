@@ -1,0 +1,12 @@
+{
+  "$id": "payment_captured.json",
+  "title": "PaymentCaptured",
+  "type": "object",
+  "required": ["orderId", "amount", "ts"],
+  "properties": {
+    "orderId": { "type": "integer", "minimum": 1 },
+    "amount": { "type": "number", "minimum": 0 },
+    "ts": { "type": "integer" }
+  },
+  "additionalProperties": false
+}

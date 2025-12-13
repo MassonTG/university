@@ -1,0 +1,12 @@
+{
+  "$id": "email_sent.json",
+  "title": "EmailSent",
+  "type": "object",
+  "required": ["orderId", "to", "ts"],
+  "properties": {
+    "orderId": { "type": "integer", "minimum": 1 },
+    "to": { "type": "string", "format": "email" },
+    "ts": { "type": "integer" }
+  },
+  "additionalProperties": false
+}

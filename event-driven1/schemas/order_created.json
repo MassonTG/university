@@ -1,0 +1,14 @@
+{
+  "$id": "order_created.json",
+  "title": "OrderCreated",
+  "type": "object",
+  "required": ["orderId", "userId", "itemId", "qty", "ts"],
+  "properties": {
+    "orderId": { "type": "integer", "minimum": 1 },
+    "userId": { "type": "integer", "minimum": 1 },
+    "itemId": { "type": "integer", "minimum": 1 },
+    "qty": { "type": "integer", "minimum": 1 },
+    "ts": { "type": "integer" }
+  },
+  "additionalProperties": false
+}

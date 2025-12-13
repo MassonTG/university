@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # One-shot init to create required topics
+  init-topics:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - kafka
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        echo "Waiting for kafka:9092...";
+        for i in {1..30}; do
+          /usr/bin/kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1 && break || sleep 2;
+        done
+        set -e
+        /usr/bin/kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic orders.events --replication-factor 1 --partitions 1
+        echo "Topic orders.events ensured."
+    restart: "no"
+
+  orders:
+    build: ./services/orders
+    ports:
+      - "5002:5002"
+    depends_on:
+      - kafka
+      - init-topics
+    entrypoint: >
+      sh -c "dockerize -wait tcp://kafka:9092 -timeout 60s node server.js"
+
+  billing:
+    build: ./services/billing
+    depends_on:
+      - kafka
+      - init-topics
+    entrypoint: >
+      sh -c "dockerize -wait tcp://kafka:9092 -timeout 60s node server.js"
+
+  notifications:
+    build: ./services/notifications
+    depends_on:
+      - kafka
+      - init-topics
+    entrypoint: >
+      sh -c "dockerize -wait tcp://kafka:9092 -timeout 60s node server.js"
