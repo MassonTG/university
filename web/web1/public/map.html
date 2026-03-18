@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система доставки — Моніторинг</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root { --primary:#2c3e50; --accent:#2ecc71; --danger:#e74c3c; --warning:#f39c12; --bg:#f4f7f6; }
+        * { box-sizing: border-box; }
+        body { margin:0; font-family:'Segoe UI',sans-serif; display:flex; flex-direction:column; height:100vh; background:var(--bg); }
+        #map { flex:1; z-index:1; min-height:0; }
+        #dashboard {
+            height:440px; display:grid;
+            grid-template-columns: 320px 230px 1fr 1fr;
+            gap:14px; padding:14px;
+            background:#fff; border-top:4px solid var(--primary); overflow:hidden;
+        }
+        .card { background:#fff; padding:13px; border-radius:10px; border:1px solid #e0e0e0; display:flex; flex-direction:column; overflow:hidden; }
+        h3 { margin:0 0 10px 0; font-size:13px; color:var(--primary); border-bottom:2px solid var(--accent); padding-bottom:7px; display:flex; justify-content:space-between; align-items:center; }
+        .scroll { overflow-y:auto; flex:1; padding-right:2px; }
+
+        /* Вкладки */
+        .tabs { display:flex; gap:0; margin-bottom:10px; border-bottom:2px solid var(--accent); }
+        .tab {
+            padding:5px 12px; font-size:12px; cursor:pointer; font-weight:600;
+            color:#888; border-radius:6px 6px 0 0; transition:background .15s,color .15s;
+            user-select:none;
+        }
+        .tab:hover { background:#f0f0f0; color:var(--primary); }
+        .tab.active { background:var(--accent); color:#fff; }
+        .tab-panel { display:none; flex:1; overflow:hidden; flex-direction:column; }
+        .tab-panel.active { display:flex; }
+
+        /* Поля вводу */
+        .input-wrap { margin-bottom:8px; position:relative; }
+        .input-wrap label { font-size:11px; color:#888; margin-bottom:3px; display:block; font-weight:500; }
+        input[type=text] { width:100%; padding:8px 10px; border:1px solid #ccc; border-radius:6px; font-size:12px; transition:border-color .2s,background .2s; outline:none; }
+        input[type=text]:focus { border-color:var(--primary); }
+        input.valid    { border-color:var(--accent) !important; background:#f0fff4; }
+        input.invalid  { border-color:var(--danger) !important; background:#fff5f5; }
+
+        .phone-wrap { display:flex; align-items:center; }
+        .phone-prefix { padding:8px 9px; background:#f0f0f0; border:1px solid #ccc; border-right:none; border-radius:6px 0 0 6px; font-size:12px; color:#555; white-space:nowrap; user-select:none; }
+        .phone-wrap input { border-radius:0 6px 6px 0 !important; flex:1; }
+
+        .field-hint { font-size:10px; margin-top:2px; min-height:13px; }
+        .hint-ok   { color:var(--accent); }
+        .hint-err  { color:var(--danger); }
+        .hint-info { color:#888; }
+
+        /* Автокомпліт */
+        .addr-wrap { position:relative; }
+        .autocomplete-list { position:absolute; top:100%; left:0; right:0; z-index:9999; background:#fff; border:1px solid #ccc; border-top:none; border-radius:0 0 6px 6px; max-height:150px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,.12); }
+        .ac-item { padding:7px 10px; font-size:11px; cursor:pointer; border-bottom:1px solid #f0f0f0; line-height:1.3; }
+        .ac-item:last-child { border-bottom:none; }
+        .ac-item:hover { background:#f0f7ff; }
+        .ac-main { font-weight:600; color:#2c3e50; }
+        .ac-sub  { color:#888; font-size:10px; }
+
+        hr { border:0; border-top:1px solid #eee; margin:8px 0; }
+        .btn { width:100%; padding:9px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold; font-size:12px; transition:background .2s; margin-top:8px; }
+        .btn:hover { background:#27ae60; }
+        .btn:disabled { background:#aaa; cursor:not-allowed; }
+        .btn-dark { background:var(--primary); }
+        .btn-dark:hover { background:#1a252f; }
+        .btn-sm { width:auto; padding:3px 8px; font-size:10px; margin-top:0; border-radius:4px; }
+        .btn-archive { background:#95a5a6; }
+        .btn-archive:hover { background:#7f8c8d; }
+
+        .item { font-size:12px; padding:8px 7px; border-bottom:1px solid #f0f0f0; }
+        .item:last-child { border-bottom:none; }
+        .badge { display:inline-block; font-size:10px; padding:2px 7px; border-radius:10px; font-weight:bold; text-transform:uppercase; }
+        .badge-idle      { background:#d4edda; color:#155724; }
+        .badge-busy      { background:#fff3cd; color:#856404; }
+        .badge-pending   { background:#cce5ff; color:#004085; }
+        .badge-assigned  { background:#fff3cd; color:#856404; }
+        .badge-picked_up { background:#d4edda; color:#155724; }
+        .badge-delivered { background:#e2e3e5; color:#383d41; }
+        .eta-tag { font-size:10px; color:#fff; background:#2980b9; border-radius:8px; padding:1px 6px; margin-left:4px; font-variant-numeric:tabular-nums; }
+        .assign-row { display:flex; gap:5px; margin-top:5px; align-items:center; }
+        .assign-row select { flex:1; padding:4px; border-radius:5px; border:1px solid #ccc; font-size:11px; }
+        .assign-row button { padding:4px 9px; background:var(--primary); color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:11px; font-weight:bold; white-space:nowrap; }
+        .assign-row button:hover { background:#1a252f; }
+        .security-info { font-size:10px; color:#aaa; text-align:center; margin-top:5px; }
+
+        /* Архів */
+        .archive-item { font-size:11px; padding:8px 7px; border-bottom:1px solid #f0f0f0; color:#555; }
+        .archive-item:last-child { border-bottom:none; }
+        .archive-empty { text-align:center; color:#bbb; margin-top:30px; font-size:12px; }
+        .archive-search { width:100%; padding:6px 9px; border:1px solid #ddd; border-radius:6px; font-size:12px; margin-bottom:8px; outline:none; }
+        .archive-search:focus { border-color:var(--primary); }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="dashboard">
+
+    <!-- НОВА ДОСТАВКА -->
+    <div class="card">
+        <h3>📦 Нова доставка</h3>
+        <div class="scroll">
+            <div class="input-wrap">
+                <label>Відправник — ПІБ</label>
+                <input type="text" id="s_name" placeholder="Іван Петренко" oninput="validateName('s_name','s_name_hint')">
+                <div class="field-hint" id="s_name_hint"></div>
+            </div>
+            <div class="input-wrap">
+                <label>Телефон відправника</label>
+                <div class="phone-wrap">
+                    <span class="phone-prefix">+380</span>
+                    <input type="text" id="s_phone" placeholder="XX XXX XX XX" maxlength="12" oninput="formatPhone(this,'s_phone_hint')">
+                </div>
+                <div class="field-hint" id="s_phone_hint"></div>
+            </div>
+            <div class="input-wrap addr-wrap">
+                <label>Адреса забору</label>
+                <input type="text" id="p_addr" placeholder="Почніть вводити вулицю..." oninput="scheduleAddrSearch('p_addr','p_hint','pickup')" autocomplete="off">
+                <div class="autocomplete-list" id="p_ac" style="display:none"></div>
+                <div class="field-hint" id="p_hint"></div>
+            </div>
+            <hr>
+            <div class="input-wrap">
+                <label>Отримувач — ПІБ</label>
+                <input type="text" id="r_name" placeholder="Марія Коваль" oninput="validateName('r_name','r_name_hint')">
+                <div class="field-hint" id="r_name_hint"></div>
+            </div>
+            <div class="input-wrap">
+                <label>Телефон отримувача</label>
+                <div class="phone-wrap">
+                    <span class="phone-prefix">+380</span>
+                    <input type="text" id="r_phone" placeholder="XX XXX XX XX" maxlength="12" oninput="formatPhone(this,'r_phone_hint')">
+                </div>
+                <div class="field-hint" id="r_phone_hint"></div>
+            </div>
+            <div class="input-wrap addr-wrap">
+                <label>Адреса доставки</label>
+                <input type="text" id="d_addr" placeholder="Почніть вводити вулицю..." oninput="scheduleAddrSearch('d_addr','d_hint','dropoff')" autocomplete="off">
+                <div class="autocomplete-list" id="d_ac" style="display:none"></div>
+                <div class="field-hint" id="d_hint"></div>
+            </div>
+            <button class="btn" id="submit-btn" onclick="createDelivery()">🚀 СТВОРИТИ ЗАМОВЛЕННЯ</button>
+        </div>
+        <div class="security-info">🔒 SSL/TLS · CSRF · XSS захист</div>
+    </div>
+
+    <!-- ДОДАТИ ВОДІЯ -->
+    <div class="card">
+        <h3>➕ Новий водій</h3>
+        <div class="scroll">
+            <div class="input-wrap">
+                <label>Ім'я водія</label>
+                <input type="text" id="drv_name" placeholder="Олег Мельник" oninput="validateName('drv_name','drv_name_hint')">
+                <div class="field-hint" id="drv_name_hint"></div>
+            </div>
+            <div class="input-wrap addr-wrap">
+                <label>Стартова адреса</label>
+                <input type="text" id="drv_addr" placeholder="Почніть вводити вулицю..." oninput="scheduleAddrSearch('drv_addr','drv_hint','driver')" autocomplete="off">
+                <div class="autocomplete-list" id="drv_ac" style="display:none"></div>
+                <div class="field-hint" id="drv_hint"></div>
+            </div>
+            <button class="btn btn-dark" id="add-driver-btn" onclick="addDriver()">➕ ДОДАТИ ВОДІЯ</button>
+        </div>
+    </div>
+
+    <!-- ВОДІЇ + ЗАМОВЛЕННЯ (вкладки) -->
+    <div class="card" style="grid-column: span 2; display:flex; flex-direction:column; overflow:hidden;">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('active')">🚚 Активні замовлення</div>
+            <div class="tab" onclick="switchTab('drivers')">🚗 Водії <span id="driver-count" style="background:rgba(255,255,255,.3);padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">0</span></div>
+            <div class="tab" onclick="switchTab('archive')">📁 Архів <span id="archive-count" style="background:rgba(255,255,255,.3);padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">0</span></div>
+        </div>
+
+        <!-- Активні замовлення -->
+        <div class="tab-panel active" id="panel-active">
+            <div id="deliveries-list" class="scroll">
+                <p style="text-align:center;color:#bbb;margin-top:30px;">Немає замовлень</p>
+            </div>
+        </div>
+
+        <!-- Водії -->
+        <div class="tab-panel" id="panel-drivers">
+            <div id="drivers-list" class="scroll">
+                <p style="text-align:center;color:#bbb;margin-top:30px;">Завантаження...</p>
+            </div>
+        </div>
+
+        <!-- Архів -->
+        <div class="tab-panel" id="panel-archive">
+            <input type="text" class="archive-search" id="archive-search" placeholder="🔍 Пошук по імені, адресі..." oninput="filterArchive()">
+            <div id="archive-list" class="scroll">
+                <p class="archive-empty">Архів порожній</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+//  КАРТА 
+const map = L.map('map').setView([50.4501, 30.5234], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap' }).addTo(map);
+
+const carIcon     = L.icon({ iconUrl:'https://cdn-icons-png.flaticon.com/512/744/744465.png', iconSize:[34,34], iconAnchor:[17,17] });
+const pickupIcon  = L.icon({ iconUrl:'https://cdn-icons-png.flaticon.com/512/447/447031.png', iconSize:[30,30], iconAnchor:[15,30] });
+const dropoffIcon = L.icon({ iconUrl:'https://cdn-icons-png.flaticon.com/512/484/484167.png', iconSize:[30,30], iconAnchor:[15,30] });
+
+let driverMarkers    = {};
+let deliveryMarkers  = {};
+let driverRoutes     = {};
+let driverAnimations = {};
+let driverETA        = {};
+let allDrivers       = [];
+let archiveData      = [];
+
+//  ВКЛАДКИ 
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t,i) => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const idx = { active:0, drivers:1, archive:2 }[name];
+    document.querySelectorAll('.tab')[idx].classList.add('active');
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'archive') renderArchive();
+}
+
+//  ВАЛІДАЦІЯ 
+function validateName(inputId, hintId) {
+    const val  = document.getElementById(inputId).value.trim();
+    const el   = document.getElementById(inputId);
+    const hint = document.getElementById(hintId);
+    const ok   = /^[А-ЯҐЄІЇа-яґєіїA-Za-z\-']{2,}(\s[А-ЯҐЄІЇа-яґєіїA-Za-z\-']{2,})+$/.test(val);
+    if (!val) { el.className=''; hint.textContent=''; hint.className='field-hint'; }
+    else if (ok) { el.className='valid'; hint.textContent='✓ Коректно'; hint.className='field-hint hint-ok'; }
+    else { el.className='invalid'; hint.textContent="Введіть прізвище та ім'я"; hint.className='field-hint hint-err'; }
+    return ok;
+}
+
+function formatPhone(input, hintId) {
+    const hint   = document.getElementById(hintId);
+    let digits   = input.value.replace(/\D/g,'').substring(0,9);
+    let formatted= '';
+    if (digits.length > 0) formatted  = digits.substring(0,2);
+    if (digits.length > 2) formatted += ' ' + digits.substring(2,5);
+    if (digits.length > 5) formatted += ' ' + digits.substring(5,7);
+    if (digits.length > 7) formatted += ' ' + digits.substring(7,9);
+    input.value = formatted;
+    const pure = digits;
+    if (!pure) { input.className=''; hint.textContent='+380 XX XXX XX XX'; hint.className='field-hint hint-info'; }
+    else if (pure.length===9) { input.className='valid'; hint.textContent=`✓ +380 ${formatted}`; hint.className='field-hint hint-ok'; }
+    else { input.className='invalid'; hint.textContent=`Введіть ще ${9-pure.length} цифр`; hint.className='field-hint hint-err'; }
+    return pure.length===9;
+}
+
+function getFullPhone(inputId) {
+    const d = document.getElementById(inputId).value.replace(/\D/g,'');
+    return d.length===9 ? '+380'+d : '';
+}
+
+//  АВТОКОМПЛІТ АДРЕС 
+const acTimers = {};
+const geocodeCoords  = { pickup:null, dropoff:null, driver:null };
+const previewMarkers = { pickup:null, dropoff:null, driver:null };
+const acMap = {
+    pickup:  { input:'p_addr',   ac:'p_ac',   hint:'p_hint'   },
+    dropoff: { input:'d_addr',   ac:'d_ac',   hint:'d_hint'   },
+    driver:  { input:'drv_addr', ac:'drv_ac', hint:'drv_hint' },
+};
+
+function scheduleAddrSearch(inputId, hintId, type) {
+    clearTimeout(acTimers[type]);
+    const val  = document.getElementById(inputId).value.trim();
+    const acEl = document.getElementById(acMap[type].ac);
+    if (val.length < 3) {
+        acEl.style.display='none'; geocodeCoords[type]=null;
+        document.getElementById(inputId).className='';
+        document.getElementById(hintId).textContent='';
+        if (previewMarkers[type]) { map.removeLayer(previewMarkers[type]); previewMarkers[type]=null; }
+        return;
+    }
+    document.getElementById(hintId).textContent='⏳ Пошук...';
+    document.getElementById(hintId).className='field-hint hint-info';
+    acTimers[type] = setTimeout(() => doAddrSearch(val, type), 500);
+}
+
+async function doAddrSearch(query, type) {
+    const cfg  = acMap[type];
+    const acEl = document.getElementById(cfg.ac);
+    const hint = document.getElementById(cfg.hint);
+    try {
+        const q   = query.toLowerCase().includes('київ') ? query : query + ', Київ, Україна';
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=${encodeURIComponent(q)}`, { headers:{'Accept-Language':'uk'} });
+        const data= await res.json();
+        if (!data.length) {
+            acEl.style.display='none';
+            hint.textContent='❌ Нічого не знайдено'; hint.className='field-hint hint-err';
+            document.getElementById(cfg.input).className='invalid'; return;
+        }
+        acEl.innerHTML = data.map((item,idx) => {
+            const a    = item.address||{};
+            const main = a.road||a.pedestrian||a.footway||item.display_name.split(',')[0];
+            const sub  = [a.house_number,a.suburb,a.city_district,a.city].filter(Boolean).join(', ');
+            return `<div class="ac-item" onclick="selectAddress(${idx},'${type}')">
+                        <div class="ac-main">${main}${a.house_number?' '+a.house_number:''}</div>
+                        <div class="ac-sub">${sub||item.display_name.split(',').slice(1,3).join(',')}</div>
+                    </div>`;
+        }).join('');
+        acEl._results = data;
+        acEl.style.display='block'; hint.textContent='';
+    } catch {
+        acEl.style.display='none';
+        hint.textContent='❌ Помилка пошуку'; hint.className='field-hint hint-err';
+    }
+}
+
+function selectAddress(idx, type) {
+    const cfg  = acMap[type];
+    const acEl = document.getElementById(cfg.ac);
+    const item = acEl._results[idx];
+    const a    = item.address||{};
+    const parts= [];
+    if (a.road||a.pedestrian||a.footway) parts.push(a.road||a.pedestrian||a.footway);
+    if (a.house_number) parts.push(a.house_number);
+    if (a.city||a.town) parts.push(a.city||a.town);
+    const addr = parts.length ? parts.join(', ') : item.display_name.split(',').slice(0,2).join(',').trim();
+    document.getElementById(cfg.input).value    = addr;
+    document.getElementById(cfg.input).className= 'valid';
+    document.getElementById(cfg.hint).textContent= '✓ Адресу підтверджено';
+    document.getElementById(cfg.hint).className  = 'field-hint hint-ok';
+    acEl.style.display='none';
+    const coords = { lat:parseFloat(item.lat), lng:parseFloat(item.lon), display:item.display_name };
+    geocodeCoords[type] = coords;
+    if (previewMarkers[type]) map.removeLayer(previewMarkers[type]);
+    const icons  = { pickup:pickupIcon, dropoff:dropoffIcon, driver:carIcon };
+    const labels = { pickup:'📍 Точка забору', dropoff:'🏁 Точка доставки', driver:'🚗 Старт водія' };
+    previewMarkers[type] = L.marker([coords.lat,coords.lng],{icon:icons[type]}).addTo(map).bindPopup(labels[type]+'<br><small>'+addr+'</small>');
+    map.setView([coords.lat,coords.lng],15);
+}
+
+document.addEventListener('click', e => {
+    Object.values(acMap).forEach(cfg => {
+        const acEl = document.getElementById(cfg.ac);
+        if (!document.getElementById(cfg.input).contains(e.target) && !acEl.contains(e.target))
+            acEl.style.display='none';
+    });
+});
+
+// ДОДАТИ ВОДІЯ 
+async function addDriver() {
+    const btn = document.getElementById('add-driver-btn');
+    const name= document.getElementById('drv_name').value.trim();
+    if (!name) { alert("Введіть ім'я водія!"); return; }
+    if (!validateName('drv_name','drv_name_hint')) { alert("Некоректне ім'я"); return; }
+    btn.disabled=true; btn.textContent='⏳ Додавання...';
+    try {
+        const { csrfToken } = await (await fetch('/api/get-token')).json();
+        const res = await fetch('/api/drivers', {
+            method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
+            body: JSON.stringify({ name, lat:geocodeCoords.driver?.lat||null, lng:geocodeCoords.driver?.lng||null })
+        });
+        if (res.ok) {
+            ['drv_name','drv_addr'].forEach(id => { document.getElementById(id).value=''; document.getElementById(id).className=''; });
+            ['drv_name_hint','drv_hint'].forEach(id => { const el=document.getElementById(id); el.textContent=''; el.className='field-hint'; });
+            geocodeCoords.driver=null;
+            if (previewMarkers.driver) { map.removeLayer(previewMarkers.driver); previewMarkers.driver=null; }
+            await updateData();
+        } else alert('Помилка: '+(await res.json()).error);
+    } catch(e) { alert('Помилка: '+e.message); }
+    finally { btn.disabled=false; btn.textContent='➕ ДОДАТИ ВОДІЯ'; }
+}
+
+//  ВАЛІДАЦІЯ ФОРМИ 
+function validateForm() {
+    const errors = [];
+    if (!validateName('s_name','s_name_hint'))  errors.push('ПІБ відправника');
+    if (!validateName('r_name','r_name_hint'))  errors.push('ПІБ отримувача');
+    if (document.getElementById('s_phone').value.replace(/\D/g,'').length!==9) { document.getElementById('s_phone').className='invalid'; errors.push('Телефон відправника'); }
+    if (document.getElementById('r_phone').value.replace(/\D/g,'').length!==9) { document.getElementById('r_phone').className='invalid'; errors.push('Телефон отримувача'); }
+    if (!geocodeCoords.pickup)  { document.getElementById('p_addr').className='invalid'; errors.push('Адреса забору (оберіть зі списку)'); }
+    if (!geocodeCoords.dropoff) { document.getElementById('d_addr').className='invalid'; errors.push('Адреса доставки (оберіть зі списку)'); }
+    if (errors.length) { alert('Заповніть коректно:\n• '+errors.join('\n• ')); return false; }
+    return true;
+}
+
+//  СТВОРИТИ ДОСТАВКУ
+async function createDelivery() {
+    if (!validateForm()) return;
+    const btn = document.getElementById('submit-btn');
+    btn.disabled=true; btn.textContent='⏳ Збереження...';
+    try {
+        const { csrfToken } = await (await fetch('/api/get-token')).json();
+        const res = await fetch('/api/deliveries', {
+            method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
+            body: JSON.stringify({
+                sender_name:    document.getElementById('s_name').value.trim(),
+                sender_phone:   getFullPhone('s_phone'),
+                pickup_address: document.getElementById('p_addr').value,
+                receiver_name:  document.getElementById('r_name').value.trim(),
+                receiver_phone: getFullPhone('r_phone'),
+                dropoff_address:document.getElementById('d_addr').value,
+                pickup_lat: geocodeCoords.pickup.lat,  pickup_lng: geocodeCoords.pickup.lng,
+                dropoff_lat:geocodeCoords.dropoff.lat, dropoff_lng:geocodeCoords.dropoff.lng,
+            })
+        });
+        if (res.ok) {
+            ['s_name','s_phone','p_addr','r_name','r_phone','d_addr'].forEach(id => { document.getElementById(id).value=''; document.getElementById(id).className=''; });
+            ['s_name_hint','s_phone_hint','p_hint','r_name_hint','r_phone_hint','d_hint'].forEach(id => { const el=document.getElementById(id); el.textContent=''; el.className='field-hint'; });
+            geocodeCoords.pickup=geocodeCoords.dropoff=null;
+            ['pickup','dropoff'].forEach(t => { if(previewMarkers[t]){map.removeLayer(previewMarkers[t]);previewMarkers[t]=null;} });
+            await updateData();
+        } else alert('Помилка: '+(await res.json()).error);
+    } catch(e) { alert('Помилка: '+e.message); }
+    finally { btn.disabled=false; btn.textContent='🚀 СТВОРИТИ ЗАМОВЛЕННЯ'; }
+}
+
+//  ПРИЗНАЧИТИ ВОДІЯ 
+async function assignDriver(deliveryId, driverId) {
+    if (!driverId) { alert('Оберіть водія!'); return; }
+    try {
+        const { csrfToken } = await (await fetch('/api/get-token')).json();
+        const res = await fetch(`/api/deliveries/${deliveryId}/assign`, {
+            method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
+            body: JSON.stringify({ driver_id: driverId })
+        });
+        if (!res.ok) { alert('Помилка призначення'); return; }
+        const result = await res.json();
+        if (result.totalMs) driverETA[driverId] = Date.now() + result.totalMs;
+        await updateData();
+        const dels = await (await fetch('/api/deliveries')).json();
+        const del  = dels.find(d => d.id==deliveryId);
+        if (del?.pickup_lat && del.driver_id) {
+            const marker = driverMarkers[del.driver_id];
+            if (marker) {
+                const pos = marker.getLatLng();
+                animateDriverFull(del.driver_id, [pos.lat,pos.lng], [del.pickup_lat,del.pickup_lng], [del.dropoff_lat,del.dropoff_lng], result.totalMs);
+            }
+        }
+    } catch(e) { alert('Помилка: '+e.message); }
+}
+
+// АРХІВУВАТИ ВРУЧНУ 
+async function archiveDelivery(deliveryId) {
+    if (!confirm('Перемістити замовлення #'+deliveryId+' в архів?')) return;
+    try {
+        const { csrfToken } = await (await fetch('/api/get-token')).json();
+        await fetch(`/api/deliveries/${deliveryId}/archive`, {
+            method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},
+            body: JSON.stringify({})
+        });
+        removeDeliveryMarkers(deliveryId);
+        await updateData();
+    } catch(e) { alert('Помилка: '+e.message); }
+}
+
+function removeDeliveryMarkers(deliveryId) {
+    if (!deliveryMarkers[deliveryId]) return;
+    if (deliveryMarkers[deliveryId].pickup)  { map.removeLayer(deliveryMarkers[deliveryId].pickup);  }
+    if (deliveryMarkers[deliveryId].dropoff) { map.removeLayer(deliveryMarkers[deliveryId].dropoff); }
+    delete deliveryMarkers[deliveryId];
+}
+
+// АНІМАЦІЯ 
+async function animateDriverFull(driverId, from, pickup, dropoff, totalMs) {
+    if (driverAnimations[driverId]) cancelAnimationFrame(driverAnimations[driverId]);
+    const r1 = await fetchRouteCoords(from, pickup);
+    const r2 = await fetchRouteCoords(pickup, dropoff);
+    if (!r1||!r2) return;
+    const all = [...r1,...r2];
+    if (driverRoutes[driverId]) map.removeLayer(driverRoutes[driverId]);
+    driverRoutes[driverId] = L.polyline(all,{color:'#2980b9',weight:3,dashArray:'6,8',opacity:.7}).addTo(map);
+    const ms1 = totalMs ? totalMs*(r1.length/all.length) : 30000;
+    const ms2 = totalMs ? totalMs*(r2.length/all.length) : 30000;
+    const marker = driverMarkers[driverId];
+    if (!marker) return;
+    animateSegment(marker, r1, ms1, driverId, () => {
+        if (driverRoutes[driverId]) map.removeLayer(driverRoutes[driverId]);
+        driverRoutes[driverId] = L.polyline(r2,{color:'#27ae60',weight:3,dashArray:'6,8',opacity:.7}).addTo(map);
+        animateSegment(marker, r2, ms2, driverId, () => { if(driverRoutes[driverId]) map.removeLayer(driverRoutes[driverId]); });
+    });
+}
+
+function animateSegment(marker, coords, durationMs, driverId, onDone) {
+    if (coords.length<2) { if(onDone) onDone(); return; }
+    const start = performance.now();
+    const dist  = [0];
+    for (let i=1;i<coords.length;i++) dist.push(dist[i-1]+Math.hypot(coords[i][0]-coords[i-1][0],coords[i][1]-coords[i-1][1]));
+    const total = dist[dist.length-1];
+    function frame(now) {
+        const p = Math.min((now-start)/durationMs,1);
+        const t = total*p;
+        let idx=0; for(let i=1;i<dist.length;i++){if(dist[i]>=t){idx=i-1;break;}idx=i;}
+        const nx=Math.min(idx+1,coords.length-1), sl=dist[nx]-dist[idx], seg=sl>0?(t-dist[idx])/sl:0;
+        marker.setLatLng([coords[idx][0]+(coords[nx][0]-coords[idx][0])*seg, coords[idx][1]+(coords[nx][1]-coords[idx][1])*seg]);
+        if (p<1) driverAnimations[driverId]=requestAnimationFrame(frame);
+        else { marker.setLatLng(coords[coords.length-1]); if(onDone)onDone(); }
+    }
+    driverAnimations[driverId]=requestAnimationFrame(frame);
+}
+
+async function fetchRouteCoords(from, to) {
+    try {
+        const d = await (await fetch(`https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`)).json();
+        return d.routes?.[0]?.geometry.coordinates.map(c=>[c[1],c[0]])||null;
+    } catch { return null; }
+}
+
+// ТАЙМЕР 
+function etaCountdown(driverId) {
+    if (!driverETA[driverId]) return '';
+    const rem = driverETA[driverId]-Date.now();
+    if (rem<=0) { delete driverETA[driverId]; return ''; }
+    const min=Math.floor(rem/60000), sec=Math.floor((rem%60000)/1000);
+    return `<span class="eta-tag">⏱ ${min}:${sec.toString().padStart(2,'0')}</span>`;
+}
+setInterval(() => {
+    document.querySelectorAll('.eta-live').forEach(el => el.innerHTML=etaCountdown(parseInt(el.dataset.driver)));
+}, 1000);
+
+// АРХІВ
+function renderArchive() {
+    const search = (document.getElementById('archive-search').value||'').toLowerCase();
+    const list   = document.getElementById('archive-list');
+    const filtered = search
+        ? archiveData.filter(d =>
+            (d.sender_name||'').toLowerCase().includes(search) ||
+            (d.receiver_name||'').toLowerCase().includes(search) ||
+            (d.pickup_address||'').toLowerCase().includes(search) ||
+            (d.dropoff_address||'').toLowerCase().includes(search) ||
+            String(d.id).includes(search))
+        : archiveData;
+
+    if (!filtered.length) {
+        list.innerHTML = '<p class="archive-empty">Нічого не знайдено</p>'; return;
+    }
+    list.innerHTML = filtered.map(d => `
+        <div class="archive-item">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <b>#${d.id} — ${d.sender_name} → ${d.receiver_name}</b>
+                <span class="badge badge-delivered">Доставлено</span>
+            </div>
+            <div style="margin-top:3px;color:#777;">
+                📍 ${d.pickup_address} → 🏁 ${d.dropoff_address}
+            </div>
+            <div style="margin-top:2px;color:#aaa;font-size:10px;">
+                Водій: ${d.driver_name||'—'} &nbsp;|&nbsp;
+                📞 ${d.sender_phone||'—'} → ${d.receiver_phone||'—'}
+            </div>
+        </div>`).join('');
+}
+
+function filterArchive() { renderArchive(); }
+
+// ОНОВЛЕННЯ ДАНИХ 
+async function updateData() {
+    try {
+        // Водії
+        const dRes = await fetch('/api/drivers');
+        allDrivers = await dRes.json();
+        document.getElementById('driver-count').textContent = allDrivers.length;
+        document.getElementById('drivers-list').innerHTML = allDrivers.map(d=>`
+            <div class="item">
+                <b>${d.name}</b>
+                <span class="badge ${d.status==='idle'?'badge-idle':'badge-busy'}">${d.status==='idle'?'Вільний':'Доставляє'}</span>
+                ${d.status==='delivering'?`<span class="eta-live" data-driver="${d.id}">${etaCountdown(d.id)}</span>`:''}
+            </div>`).join('');
+
+        allDrivers.forEach(d => {
+            if (!driverMarkers[d.id]) {
+                const lat=d.lat||(50.40+Math.random()*.10), lng=d.lng||(30.45+Math.random()*.15);
+                driverMarkers[d.id]=L.marker([lat,lng],{icon:carIcon}).addTo(map).bindPopup(`🚗 ${d.name}`);
+            }
+        });
+
+        // Активні замовлення
+        const deliveries = await (await fetch('/api/deliveries')).json();
+        const delList    = document.getElementById('deliveries-list');
+        const free       = allDrivers.filter(d=>d.status==='idle');
+
+        if (!deliveries.length) {
+            delList.innerHTML='<p style="text-align:center;color:#bbb;margin-top:30px;">Немає замовлень</p>';
+        } else {
+            delList.innerHTML = deliveries.map(del => {
+                const hasEta = !!driverETA[del.driver_id];
+                const noTimer= del.status==='assigned' && !hasEta;
+
+                const ab = del.status==='pending'
+                    ? `<div class="assign-row">
+                           <select id="sel-${del.id}">
+                               <option value="">— водій —</option>
+                               ${free.map(d=>`<option value="${d.id}">${d.name}</option>`).join('')}
+                           </select>
+                           <button onclick="assignDriver(${del.id},document.getElementById('sel-${del.id}').value)">Призначити</button>
+                           <button class="btn-sm btn-archive" onclick="archiveDelivery(${del.id})">📁</button>
+                       </div>`
+                    : `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+                           <span style="color:#888;font-size:11px;">Водій: <b>${del.driver_name||'—'}</b>
+                               ${del.driver_id?`<span class="eta-live" data-driver="${del.driver_id}">${etaCountdown(del.driver_id)}</span>`:''}
+                               ${noTimer?'<span style="color:#e67e22;font-size:10px;margin-left:4px;">⚠ без таймера</span>':''}
+                           </span>
+                           <button class="btn btn-sm btn-archive" onclick="archiveDelivery(${del.id})">📁 Архів</button>
+                       </div>`;
+
+                return `<div class="item">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <b>#${del.id} ${del.sender_name} → ${del.receiver_name}</b>
+                        <span class="badge badge-${del.status}">${statusLabel(del.status)}</span>
+                    </div>
+                    <div style="color:#666;font-size:11px;margin-top:2px;">
+                        📍 ${del.pickup_address}<br>🏁 ${del.dropoff_address}
+                    </div>${ab}
+                </div>`;
+            }).join('');
+        }
+
+        // Маркери доставок — видаляємо архів, додаємо акт
+        const activeIds = new Set(deliveries.map(d => d.id));
+        Object.keys(deliveryMarkers).forEach(id => {
+            if (!activeIds.has(parseInt(id))) removeDeliveryMarkers(parseInt(id));
+        });
+        deliveries.forEach(del => {
+            if (!deliveryMarkers[del.id]) deliveryMarkers[del.id]={};
+            if (del.pickup_lat && !deliveryMarkers[del.id].pickup)
+                deliveryMarkers[del.id].pickup=L.marker([del.pickup_lat,del.pickup_lng],{icon:pickupIcon}).addTo(map).bindPopup(`📍 Забір #${del.id}<br><small>${del.pickup_address}</small>`);
+            if (del.dropoff_lat && !deliveryMarkers[del.id].dropoff)
+                deliveryMarkers[del.id].dropoff=L.marker([del.dropoff_lat,del.dropoff_lng],{icon:dropoffIcon}).addTo(map).bindPopup(`🏁 Доставка #${del.id}<br><small>${del.dropoff_address}</small>`);
+        });
+
+        // Архів
+        const aRes = await fetch('/api/archive');
+        archiveData = await aRes.json();
+        document.getElementById('archive-count').textContent = archiveData.length;
+        // Якщо вкладка архіву відкрита — перемалювати
+        if (document.getElementById('panel-archive').classList.contains('active')) renderArchive();
+
+        // Авто-архівація замовлень без таймера
+        // Якщо assigned і немає ETA в пам'яті — позначити ⚠ вже показали вище
+        // Сервер сам архівує через 3 год фоновим процесом
+
+    } catch(e) { console.error('Помилка оновлення:', e); }
+}
+
+function statusLabel(s) {
+    return {pending:'Очікує',assigned:'Призначено',picked_up:'Забрано',delivered:'Доставлено'}[s]||s;
+}
+
+setInterval(updateData, 5000);
+updateData();
+</script>
+</body>
+</html>
