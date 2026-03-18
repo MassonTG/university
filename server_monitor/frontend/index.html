@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AMD Ryzen + Radeon Monitor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;600;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #080a0f;
+      --s1:      #0e1117;
+      --s2:      #141820;
+      --s3:      #1c2230;
+      --border:  #1e2535;
+      --text:    #c8d4e8;
+      --muted:   #4a5572;
+      --dim:     #2a3348;
+      --cpu:     #ff6b2b;
+      --ram:     #7c3aed;
+      --gpu:     #e53935;
+      --ctemp:   #f59e0b;
+      --gtemp:   #fb923c;
+      --ok:      #22c55e;
+      --danger:  #ef4444;
+      --radius:  10px;
+      --mono:    'Share Tech Mono', monospace;
+      --sans:    'Barlow', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 18px 22px 30px;
+    }
+
+    /* scanline overlay */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,.07) 2px,
+        rgba(0,0,0,.07) 4px
+      );
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    header {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .logo {
+      width: 46px; height: 46px;
+      background: linear-gradient(135deg, var(--cpu) 0%, var(--gpu) 100%);
+      border-radius: 8px; display: grid; place-items: center;
+      font-size: 24px;
+      box-shadow: 0 0 32px rgba(255,107,43,.4), 0 0 8px rgba(229,57,53,.3);
+    }
+    .header-titles h1 {
+      font-family: var(--sans);
+      font-size: 1.35rem; font-weight: 800;
+      letter-spacing: -.01em; color: #fff;
+    }
+    .cpu-model {
+      font-family: var(--mono);
+      font-size: .7rem; color: var(--cpu);
+      margin-top: 3px; letter-spacing: .06em;
+    }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .badge {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 6px;
+      font-family: var(--mono); font-size: .7rem;
+      border: 1px solid var(--border);
+      background: var(--s2); color: var(--muted);
+      transition: all .3s;
+    }
+    .badge.ok    { border-color: var(--ok);    color: var(--ok); }
+    .badge.error { border-color: var(--danger); color: var(--danger); }
+    .badge-dot   { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .badge-dot.pulse { animation: bdpulse 1.4s ease-in-out infinite; }
+    @keyframes bdpulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.3; transform:scale(.6); }
+    }
+
+    /* ── Chips row ───────────────────────────────────────────────────────── */
+    .chips {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px; margin-bottom: 18px;
+    }
+    @media (max-width: 860px) { .chips { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 480px) { .chips { grid-template-columns: 1fr; } }
+
+    .chip {
+      background: var(--s1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      position: relative; overflow: hidden;
+      transition: border-color .3s;
+    }
+    .chip:hover { border-color: var(--dim); }
+    .chip::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+    }
+    .chip.cpu::before   { background: var(--cpu); box-shadow: 0 0 12px var(--cpu); }
+    .chip.ram::before   { background: var(--ram); box-shadow: 0 0 12px var(--ram); }
+    .chip.gpu::before   { background: var(--gpu); box-shadow: 0 0 12px var(--gpu); }
+    .chip.ctemp::before { background: var(--ctemp); box-shadow: 0 0 12px var(--ctemp); }
+
+    .chip-label {
+      font-family: var(--mono);
+      font-size: .65rem; letter-spacing: .1em;
+      color: var(--muted); margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .chip-val {
+      font-family: var(--mono);
+      font-size: 2.4rem; font-weight: 400; line-height: 1;
+      transition: color .3s;
+    }
+    .chip.cpu   .chip-val { color: var(--cpu); }
+    .chip.ram   .chip-val { color: var(--ram); }
+    .chip.gpu   .chip-val { color: var(--gpu); }
+    .chip.ctemp .chip-val { color: var(--ctemp); }
+
+    .chip-sub {
+      font-size: .72rem; color: var(--muted);
+      margin-top: 5px; min-height: 1em;
+      font-family: var(--mono);
+    }
+    .bar-wrap { margin-top: 10px; height: 3px; background: var(--s3); border-radius: 2px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 2px; transition: width .5s ease; }
+    .chip.cpu   .bar-fill { background: var(--cpu); box-shadow: 0 0 6px var(--cpu); }
+    .chip.ram   .bar-fill { background: var(--ram); box-shadow: 0 0 6px var(--ram); }
+    .chip.gpu   .bar-fill { background: var(--gpu); box-shadow: 0 0 6px var(--gpu); }
+    .chip.ctemp .bar-fill { background: var(--ctemp); box-shadow: 0 0 6px var(--ctemp); }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 14px; align-items: start;
+    }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    /* ── Settings card ───────────────────────────────────────────────────── */
+    .card {
+      background: var(--s1); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+    }
+    .card-title {
+      font-family: var(--mono);
+      font-size: .65rem; font-weight: 400;
+      text-transform: uppercase; letter-spacing: .12em;
+      color: var(--muted); margin-bottom: 16px;
+      padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    }
+
+    .lhm-notice {
+      padding: 9px 12px; border-radius: 7px; margin-bottom: 14px;
+      font-size: .75rem; line-height: 1.55; display: none;
+    }
+    .lhm-notice.show {
+      display: block;
+      background: rgba(245,158,11,.06);
+      border: 1px solid rgba(245,158,11,.25);
+      color: var(--ctemp);
+    }
+    .lhm-notice a { color: inherit; }
+
+    .field { margin-bottom: 12px; }
+    label  { display: block; font-family: var(--mono); font-size: .68rem; color: var(--muted); margin-bottom: 5px; letter-spacing: .06em; }
+    input[type="text"], input[type="number"] {
+      width: 100%; background: var(--s2);
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: var(--mono); font-size: .85rem;
+      padding: 7px 10px; outline: none; transition: border-color .2s;
+    }
+    input:focus { border-color: var(--cpu); }
+
+    .slider-row { display: flex; align-items: center; gap: 10px; }
+    input[type="range"] {
+      flex: 1; -webkit-appearance: none; appearance: none;
+      height: 4px; border-radius: 2px;
+      background: var(--s3); outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--cpu); border: 2px solid var(--bg); cursor: pointer;
+    }
+    .sval {
+      min-width: 38px; text-align: center;
+      background: var(--s2); border: 1px solid var(--border);
+      border-radius: 5px; padding: 3px 6px;
+      font-family: var(--mono); font-size: .82rem; color: var(--cpu);
+    }
+
+    .btn {
+      width: 100%; padding: 9px; border: none; border-radius: 6px;
+      font-family: var(--sans); font-size: .88rem; font-weight: 600;
+      cursor: pointer; transition: opacity .2s, transform .1s;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--cpu), #c0392b);
+      color: #fff; box-shadow: 0 4px 20px rgba(255,107,43,.25);
+    }
+    .btn-secondary {
+      background: var(--s2); color: var(--text);
+      border: 1px solid var(--border); margin-top: 7px;
+    }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    #status {
+      margin-top: 10px; padding: 8px 11px;
+      border-radius: 6px; font-family: var(--mono);
+      font-size: .75rem; display: none;
+    }
+    #status.show    { display: block; }
+    #status.success { background: rgba(34,197,94,.08);  border: 1px solid var(--ok);     color: var(--ok); }
+    #status.error   { background: rgba(239,68,68,.08);  border: 1px solid var(--danger); color: var(--danger); }
+    #status.loading { background: rgba(255,107,43,.08); border: 1px solid var(--cpu);    color: var(--cpu); }
+
+    /* ── Charts column ───────────────────────────────────────────────────── */
+    .charts { display: flex; flex-direction: column; gap: 12px; }
+
+    .chart-card {
+      background: var(--s1); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 18px;
+    }
+    .chart-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .chart-title {
+      font-family: var(--mono);
+      font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+    }
+    .chart-title.cpu   { color: var(--cpu); }
+    .chart-title.ram   { color: var(--ram); }
+    .chart-title.gpu   { color: var(--gpu); }
+    .chart-title.ctemp { color: var(--ctemp); }
+    .chart-title.gtemp { color: var(--gtemp); }
+
+    .chart-cur {
+      font-family: var(--mono);
+      font-size: 1.3rem; font-weight: 400;
+    }
+
+    /* TALL charts */
+    .chart-wrap { position: relative; height: 160px; }
+
+    .chart-na {
+      display: none; text-align: center;
+      padding: 30px 0; color: var(--muted);
+      font-family: var(--mono); font-size: .75rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">🔴</div>
+    <div class="header-titles">
+      <h1 id="headerName">AMD Monitor</h1>
+      <div class="cpu-model" id="cpuModel">Завантаження…</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="badge" id="lhmBadge">
+      <div class="badge-dot"></div>
+      <span id="lhmLabel">LHM: перевірка…</span>
+    </div>
+    <div class="badge">
+      <div class="badge-dot pulse" style="background:var(--cpu)"></div>
+      <span id="liveLabel">Підключення…</span>
+    </div>
+  </div>
+</header>
+
+<!-- Chips -->
+<div class="chips">
+  <div class="chip cpu">
+    <div class="chip-label">// CPU_LOAD</div>
+    <div class="chip-val" id="cpuBig">—</div>
+    <div class="chip-sub" id="cpuSub">Ryzen 5 3600</div>
+    <div class="bar-wrap"><div class="bar-fill" id="cpuBar" style="width:0%"></div></div>
+  </div>
+  <div class="chip ram">
+    <div class="chip-label">// RAM_LOAD</div>
+    <div class="chip-val" id="ramBig">—</div>
+    <div class="chip-sub" id="ramSub">Використання</div>
+    <div class="bar-wrap"><div class="bar-fill" id="ramBar" style="width:0%"></div></div>
+  </div>
+  <div class="chip gpu">
+    <div class="chip-label">// GPU_LOAD</div>
+    <div class="chip-val" id="gpuBig">—</div>
+    <div class="chip-sub" id="gpuSub">RX 5700</div>
+    <div class="bar-wrap"><div class="bar-fill" id="gpuBar" style="width:0%"></div></div>
+  </div>
+  <div class="chip ctemp">
+    <div class="chip-label">// CPU_TEMP</div>
+    <div class="chip-val" id="ctempBig">—</div>
+    <div class="chip-sub" id="ctempSub">Tctl / Tdie</div>
+    <div class="bar-wrap"><div class="bar-fill" id="ctempBar" style="width:0%"></div></div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- Settings -->
+  <div class="card">
+    <div class="card-title">// config</div>
+
+    <div class="lhm-notice" id="lhmNotice">
+      ⚠ LHM не відповідає.<br>
+      Запусти <code>LibreHardwareMonitor.exe</code> від адміна →<br>
+      <strong>Options → Remote Web Server ✅</strong>
+    </div>
+
+    <div class="field">
+      <label>SERVER_NAME</label>
+      <input type="text" id="serverName" maxlength="64" placeholder="localhost" />
+    </div>
+    <div class="field">
+      <label>POLL_INTERVAL (сек)</label>
+      <input type="number" id="pollInterval" min="1" max="60" value="2" />
+    </div>
+    <div class="field">
+      <label>CPU_ALERT_THRESHOLD: <span id="thrLabel" style="color:var(--cpu)">75</span>%</label>
+      <div class="slider-row">
+        <input type="range" id="threshold" min="0" max="100" value="75" />
+        <span class="sval" id="thrVal">75</span>
+      </div>
+    </div>
+    <button class="btn btn-primary"   id="saveBtn">ЗБЕРЕГТИ</button>
+    <button class="btn btn-secondary" id="refreshBtn">↺ ОНОВИТИ</button>
+    <div id="status"></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title cpu">CPU Load %</span>
+        <span class="chart-cur" id="cpuCur" style="color:var(--cpu)">—</span>
+      </div>
+      <div class="chart-wrap"><canvas id="cpuChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title ctemp">CPU Temp °C</span>
+        <span class="chart-cur" id="ctempCur" style="color:var(--ctemp)">—</span>
+      </div>
+      <div class="chart-wrap" id="ctempWrap"><canvas id="ctempChart"></canvas></div>
+      <div class="chart-na" id="ctempNa">Потрібен LHM</div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title ram">RAM %</span>
+        <span class="chart-cur" id="ramCur" style="color:var(--ram)">—</span>
+      </div>
+      <div class="chart-wrap"><canvas id="ramChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title gpu" id="gpuTitle">GPU Load %</span>
+        <span class="chart-cur" id="gpuCur" style="color:var(--gpu)">—</span>
+      </div>
+      <div class="chart-wrap" id="gpuWrap"><canvas id="gpuChart"></canvas></div>
+      <div class="chart-na" id="gpuNa">Потрібен LHM + RX 5700</div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title gtemp" id="gtempTitle">GPU Temp °C</span>
+        <span class="chart-cur" id="gtempCur" style="color:var(--gtemp)">—</span>
+      </div>
+      <div class="chart-wrap" id="gtempWrap"><canvas id="gtempChart"></canvas></div>
+      <div class="chart-na" id="gtempNa">Потрібен LHM</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+const $ = id => document.getElementById(id);
+
+// ── Status ────────────────────────────────────────────────────────────────
+function showStatus(msg, type = 'success') {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  if (type !== 'loading') setTimeout(() => el.className = '', 4000);
+}
+
+// ── Threshold slider ──────────────────────────────────────────────────────
+$('threshold').addEventListener('input', () => {
+  const v = $('threshold').value;
+  $('thrVal').textContent   = v;
+  $('thrLabel').textContent = v;
+  if (cpuChart.data.labels.length) {
+    cpuChart.data.datasets[1].data = Array(cpuChart.data.labels.length).fill(Number(v));
+    cpuChart.update('none');
+  }
+});
+
+// ── Chart factory ─────────────────────────────────────────────────────────
+function makeChart(id, color, yMax, unit, withThreshold = false) {
+  const datasets = [{
+    data: [], borderColor: color,
+    backgroundColor: color + '18',
+    borderWidth: 2.5, pointRadius: 0, tension: 0.35, fill: true,
+  }];
+  if (withThreshold) datasets.push({
+    data: [], borderColor: '#ef4444',
+    borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, fill: false,
+  });
+  return new Chart($(id).getContext('2d'), {
+    type: 'line',
+    data: { labels: [], datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 200 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0e1117',
+          borderColor: '#1e2535', borderWidth: 1,
+          titleColor: '#c8d4e8', bodyColor: '#4a5572',
+          titleFont: { family: "'Share Tech Mono'" },
+          bodyFont:  { family: "'Share Tech Mono'" },
+          callbacks: { label: c => ' ' + c.parsed.y.toFixed(1) + unit }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#141820' },
+          ticks: { color: '#2a3348', maxTicksLimit: 8, font: { family: "'Share Tech Mono'", size: 10 } }
+        },
+        y: {
+          min: 0, max: yMax,
+          grid: { color: '#141820' },
+          ticks: {
+            color: '#2a3348',
+            font: { family: "'Share Tech Mono'", size: 10 },
+            callback: v => v + unit
+          }
+        }
+      }
+    }
+  });
+}
+
+const cpuChart   = makeChart('cpuChart',   '#ff6b2b', 100, '%',  true);
+const ctempChart = makeChart('ctempChart', '#f59e0b', 110, '°C', false);
+const ramChart   = makeChart('ramChart',   '#7c3aed', 100, '%',  false);
+const gpuChart   = makeChart('gpuChart',   '#e53935', 100, '%',  false);
+const gtempChart = makeChart('gtempChart', '#fb923c', 120, '°C', false);
+
+// ── Render ────────────────────────────────────────────────────────────────
+function renderMetrics(data, threshold, gpuAvailable, lhmActive) {
+  if (!data.length) return;
+  const labels = data.map(p => p.timestamp);
+  const last   = data[data.length - 1];
+
+  // LHM badge
+  const badge = $('lhmBadge');
+  if (lhmActive) {
+    badge.className = 'badge ok';
+    $('lhmLabel').textContent = 'LHM: ONLINE';
+    $('lhmNotice').classList.remove('show');
+  } else {
+    badge.className = 'badge error';
+    $('lhmLabel').textContent = 'LHM: OFFLINE';
+    $('lhmNotice').classList.add('show');
+  }
+
+  // CPU chart
+  cpuChart.data.labels           = labels;
+  cpuChart.data.datasets[0].data = data.map(p => p.cpu);
+  cpuChart.data.datasets[1].data = Array(labels.length).fill(threshold);
+  cpuChart.update();
+
+  // CPU Temp chart
+  const hasTemp = data.some(p => p.cpu_temp != null);
+  if (hasTemp) {
+    ctempChart.data.labels           = labels;
+    ctempChart.data.datasets[0].data = data.map(p => p.cpu_temp ?? null);
+    ctempChart.update();
+    $('ctempWrap').style.display = 'block';
+    $('ctempNa').style.display   = 'none';
+  } else {
+    $('ctempWrap').style.display = 'none';
+    $('ctempNa').style.display   = 'block';
+  }
+
+  // RAM chart
+  ramChart.data.labels           = labels;
+  ramChart.data.datasets[0].data = data.map(p => p.ram);
+  ramChart.update();
+
+  // GPU chart
+  if (gpuAvailable) {
+    gpuChart.data.labels           = labels;
+    gpuChart.data.datasets[0].data = data.map(p => p.gpu ?? 0);
+    gpuChart.update();
+    $('gpuWrap').style.display = 'block';
+    $('gpuNa').style.display   = 'none';
+  } else {
+    $('gpuWrap').style.display = 'none';
+    $('gpuNa').style.display   = 'block';
+  }
+
+  // GPU Temp chart
+  const hasGpuTemp = data.some(p => p.gpu_temp != null);
+  if (hasGpuTemp) {
+    gtempChart.data.labels           = labels;
+    gtempChart.data.datasets[0].data = data.map(p => p.gpu_temp ?? null);
+    gtempChart.update();
+    $('gtempWrap').style.display = 'block';
+    $('gtempNa').style.display   = 'none';
+    if (last.gpu_mem != null)
+      $('gtempTitle').textContent = `GPU Temp °C  ·  VRAM ${last.gpu_mem}%  (${last.gpu_mem_used|0}/${last.gpu_mem_total|0} MB)`;
+  } else {
+    $('gtempWrap').style.display = 'none';
+    $('gtempNa').style.display   = 'block';
+  }
+
+  // CPU chip
+  const overload = last.cpu >= threshold;
+  $('cpuBig').textContent = last.cpu + '%';
+  $('cpuBig').style.color = overload ? 'var(--danger)' : 'var(--cpu)';
+  $('cpuBar').style.width = last.cpu + '%';
+  $('cpuSub').textContent = overload ? '!! ПОРІГ ПЕРЕВИЩЕНО' : (last.cpu_name || 'Ryzen 5 3600');
+  $('cpuCur').textContent = last.cpu + '%';
+
+  // RAM chip
+  $('ramBig').textContent = last.ram + '%';
+  $('ramBar').style.width = last.ram + '%';
+  $('ramSub').textContent = last.ram_used_gb ? `${last.ram_used_gb} / ${last.ram_total_gb} GB` : "RAM";
+  $('ramCur').textContent = last.ram + '%';
+
+  // GPU chip
+  if (gpuAvailable && last.gpu != null) {
+    $('gpuBig').textContent = last.gpu + '%';
+    $('gpuBar').style.width = last.gpu + '%';
+    $('gpuSub').textContent = last.gpu_name || 'RX 5700';
+    $('gpuCur').textContent = last.gpu + '%';
+    if (last.gpu_name) $('gpuTitle').textContent = 'GPU Load %  ·  ' + last.gpu_name;
+  } else {
+    $('gpuBig').textContent = 'N/A';
+    $('gpuSub').textContent = 'Потрібен LHM';
+    $('gpuCur').textContent = '—';
+  }
+
+  // CPU Temp chip
+  if (last.cpu_temp != null) {
+    $('ctempBig').textContent = last.cpu_temp + '°';
+    $('ctempBar').style.width = Math.min((last.cpu_temp / 105) * 100, 100) + '%';
+    $('ctempBig').style.color = last.cpu_temp >= 90 ? 'var(--danger)'
+                               : last.cpu_temp >= 75 ? 'var(--gtemp)'
+                               : 'var(--ctemp)';
+    $('ctempSub').textContent = last.cpu_temp >= 90 ? '!! ПЕРЕГРІВ'
+                               : last.cpu_temp >= 75 ? '! ПІДВИЩЕНА'
+                               : 'Tctl / Tdie';
+    $('ctempCur').textContent = last.cpu_temp + '°C';
+  } else {
+    $('ctempBig').textContent = 'N/A';
+    $('ctempSub').textContent = 'Потрібен LHM';
+    $('ctempCur').textContent = '—';
+  }
+
+  $('liveLabel').textContent = last.timestamp;
+  if (last.cpu_name && last.cpu_name !== $('cpuModel').textContent)
+    $('cpuModel').textContent = last.cpu_name;
+}
+
+// ── Load state ────────────────────────────────────────────────────────────
+async function loadState() {
+  try {
+    const r = await fetch(`${API}/api/state`);
+    const j = await r.json();
+    const d = j.data;
+    $('serverName').value       = d.server_name;
+    $('pollInterval').value     = d.poll_interval;
+    $('threshold').value        = d.cpu_threshold;
+    $('thrVal').textContent     = d.cpu_threshold;
+    $('thrLabel').textContent   = d.cpu_threshold;
+    $('headerName').textContent = d.server_name;
+    restartPoller(d.poll_interval);
+  } catch(e) {
+    showStatus('ERROR: ' + e.message, 'error');
+  }
+}
+
+// ── Save state ────────────────────────────────────────────────────────────
+async function saveState() {
+  $('saveBtn').disabled = true;
+  showStatus('ЗБЕРЕЖЕННЯ…', 'loading');
+  try {
+    const r = await fetch(`${API}/api/state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        server_name:   $('serverName').value,
+        cpu_threshold: Number($('threshold').value),
+        poll_interval: Number($('pollInterval').value),
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(Array.isArray(j.detail) ? j.detail.map(e=>e.msg).join('; ') : j.detail);
+    $('headerName').textContent = j.data.server_name;
+    showStatus('OK: ' + j.message, 'success');
+    restartPoller(j.data.poll_interval);
+  } catch(e) {
+    showStatus('ERROR: ' + e.message, 'error');
+  } finally {
+    $('saveBtn').disabled = false;
+  }
+}
+
+// ── Load metrics ──────────────────────────────────────────────────────────
+async function loadMetrics() {
+  try {
+    const r = await fetch(`${API}/api/metrics`);
+    const j = await r.json();
+    renderMetrics(j.data, j.threshold, j.gpu_available, j.lhm_active);
+  } catch(e) {
+    $('liveLabel').textContent = 'NO CONNECTION';
+  }
+}
+
+let _timer = null;
+function restartPoller(sec) {
+  clearInterval(_timer);
+  _timer = setInterval(loadMetrics, sec * 1000);
+}
+
+$('saveBtn').addEventListener('click', saveState);
+$('refreshBtn').addEventListener('click', loadMetrics);
+
+(async () => { await loadState(); await loadMetrics(); })();
+</script>
+</body>
+</html>
