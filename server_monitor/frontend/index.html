@@ -53,7 +53,7 @@
       );
     }
 
-    /* ── Header ──────────────────────────────────────────────────────────── */
+    /*  Header  */
     header {
       display: flex; align-items: center;
       justify-content: space-between;
@@ -98,7 +98,7 @@
       50%      { opacity:.3; transform:scale(.6); }
     }
 
-    /* ── Chips row ───────────────────────────────────────────────────────── */
+    /*  Chips row  */
     .chips {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -153,7 +153,7 @@
     .chip.gpu   .bar-fill { background: var(--gpu); box-shadow: 0 0 6px var(--gpu); }
     .chip.ctemp .bar-fill { background: var(--ctemp); box-shadow: 0 0 6px var(--ctemp); }
 
-    /* ── Layout ──────────────────────────────────────────────────────────── */
+    /*  Layout */
     .layout {
       display: grid;
       grid-template-columns: 280px 1fr;
@@ -161,7 +161,7 @@
     }
     @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
 
-    /* ── Settings card ───────────────────────────────────────────────────── */
+    /*  Settings card  */
     .card {
       background: var(--s1); border: 1px solid var(--border);
       border-radius: var(--radius); padding: 18px;
@@ -240,7 +240,7 @@
     #status.error   { background: rgba(239,68,68,.08);  border: 1px solid var(--danger); color: var(--danger); }
     #status.loading { background: rgba(255,107,43,.08); border: 1px solid var(--cpu);    color: var(--cpu); }
 
-    /* ── Charts column ───────────────────────────────────────────────────── */
+    /*  Charts column  */
     .charts { display: flex; flex-direction: column; gap: 12px; }
 
     .chart-card {
@@ -411,7 +411,7 @@
 const API = 'http://localhost:8000';
 const $ = id => document.getElementById(id);
 
-// ── Status ────────────────────────────────────────────────────────────────
+//  Status 
 function showStatus(msg, type = 'success') {
   const el = $('status');
   el.textContent = msg;
@@ -419,7 +419,7 @@ function showStatus(msg, type = 'success') {
   if (type !== 'loading') setTimeout(() => el.className = '', 4000);
 }
 
-// ── Threshold slider ──────────────────────────────────────────────────────
+//  Threshold slider
 $('threshold').addEventListener('input', () => {
   const v = $('threshold').value;
   $('thrVal').textContent   = v;
@@ -430,7 +430,7 @@ $('threshold').addEventListener('input', () => {
   }
 });
 
-// ── Chart factory ─────────────────────────────────────────────────────────
+//  Chart factory
 function makeChart(id, color, yMax, unit, withThreshold = false) {
   const datasets = [{
     data: [], borderColor: color,
@@ -483,7 +483,7 @@ const ramChart   = makeChart('ramChart',   '#7c3aed', 100, '%',  false);
 const gpuChart   = makeChart('gpuChart',   '#e53935', 100, '%',  false);
 const gtempChart = makeChart('gtempChart', '#fb923c', 120, '°C', false);
 
-// ── Render ────────────────────────────────────────────────────────────────
+//  Render 
 function renderMetrics(data, threshold, gpuAvailable, lhmActive) {
   if (!data.length) return;
   const labels = data.map(p => p.timestamp);
@@ -601,7 +601,7 @@ function renderMetrics(data, threshold, gpuAvailable, lhmActive) {
     $('cpuModel').textContent = last.cpu_name;
 }
 
-// ── Load state ────────────────────────────────────────────────────────────
+//  Load state 
 async function loadState() {
   try {
     const r = await fetch(`${API}/api/state`);
@@ -618,8 +618,7 @@ async function loadState() {
     showStatus('ERROR: ' + e.message, 'error');
   }
 }
-
-// ── Save state ────────────────────────────────────────────────────────────
+//  Save state 
 async function saveState() {
   $('saveBtn').disabled = true;
   showStatus('ЗБЕРЕЖЕННЯ…', 'loading');
@@ -645,7 +644,7 @@ async function saveState() {
   }
 }
 
-// ── Load metrics ──────────────────────────────────────────────────────────
+// Load metrics 
 async function loadMetrics() {
   try {
     const r = await fetch(`${API}/api/metrics`);
