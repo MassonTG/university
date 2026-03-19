@@ -1,18 +1,4 @@
-"""
-Server Monitor Dashboard — FastAPI Backend
-AMD Ryzen 5 3600 + AMD Radeon RX 5700 / Windows
 
-Дані читаються через HTTP API LibreHardwareMonitor:
-  http://localhost:8085/data.json
-
-ВИМОГА перед запуском:
-  1. Запусти LibreHardwareMonitor.exe від імені адміністратора
-  2. Options → Remote Web Server → увімкнути, порт 8085
-  3. Потім запускай: python -m uvicorn main:app --reload
-
-Залежності: pip install fastapi uvicorn[standard] pydantic psutil
-  (wmi більше не потрібен)
-"""
 
 from datetime import datetime
 import re
@@ -123,7 +109,7 @@ async def _fetch_lhm() -> dict:
     return result
 
 
-# ── App ───────────────────────────────────────────────────────────────────────
+# App
 app = FastAPI(title="AMD Ryzen 5 3600 + RX 5700 Monitor", version="5.0.0")
 
 app.add_middleware(
@@ -138,7 +124,7 @@ async def serve_index():
     return FileResponse("../frontend/index.html")
 
 
-# ── In-memory state ───────────────────────────────────────────────────────────
+#  In-memory state 
 _state = {
     "server_name":   "DESKTOP-RH8T79Q",
     "cpu_threshold": 75,
@@ -148,7 +134,7 @@ _state = {
 _metrics_history: list[dict] = []
 
 
-# ── Збір метрик ───────────────────────────────────────────────────────────────
+# Збір метрик 
 async def _get_metrics() -> dict:
     # RAM через psutil (LHM теж є, але psutil надійніший)
     ram       = psutil.virtual_memory()
@@ -194,7 +180,7 @@ async def _get_metrics() -> dict:
     }
 
 
-# ── Pydantic ──────────────────────────────────────────────────────────────────
+# Pydantic 
 class StateUpdate(BaseModel):
     server_name:   str = Field(..., min_length=1, max_length=64)
     cpu_threshold: int = Field(..., ge=0, le=100)
@@ -222,7 +208,7 @@ class StateUpdate(BaseModel):
         return v
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# Endpoints 
 @app.get("/api/state")
 async def get_state():
     return {"status": "ok", "data": _state}
