@@ -10,11 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 
-# ── Налаштування LHM ──────────────────────────────────────────────────────────
+#  Налаштування LHM 
 LHM_URL = "http://localhost:8085/data.json"
 
 
-# ── Парсер data.json ──────────────────────────────────────────────────────────
+#  Парсер data.json 
 def _parse_value(raw: str) -> float | None:
     """
     Перетворює рядок LHM типу "42,8 °C" або "2,0 %" у float.
